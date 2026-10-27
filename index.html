@@ -1,0 +1,1225 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Nightmare Convert</title>
+<meta name="description" content="O‘yin assetlari uchun fayl konverter: rasm, audio, video va ma’lumot fayllari brauzerda o‘giriladi.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600..800&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Layout: asset-pipeline workstation. Dropzone on top, queue (left) and inspector panel (right) below. */
+:root{
+  --bg:#12141a; --panel:#191c24; --panel2:#20242f; --line:#2c313d;
+  --fg:#e8eaf0; --muted:#9aa1b2;
+  --accent:#f2b134; --accent-ink:#1b1403; --accent-text:#f2b134;
+  --ok:#62c78c; --err:#f27468;
+  --c-img:#74b4ff; --c-aud:#c9a0ff; --c-vid:#ff93b4; --c-dat:#6fd8c4; --c-oth:#b5bbc8;
+  --f-display:'Bricolage Grotesque',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --f-body:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --f-mono:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;
+  color-scheme:dark;
+}
+@media (prefers-color-scheme:light){
+  :root:not([data-theme="dark"]){
+    --bg:#eceef2; --panel:#ffffff; --panel2:#f3f4f8; --line:#d5d9e2;
+    --fg:#171a22; --muted:#586074;
+    --accent:#e6a21f; --accent-ink:#1b1403; --accent-text:#8a5700;
+    --ok:#1c8a53; --err:#c43d31;
+    --c-img:#1f6fd1; --c-aud:#7a3fd1; --c-vid:#c2285c; --c-dat:#12806c; --c-oth:#5b6272;
+    color-scheme:light;
+  }
+}
+:root[data-theme="light"]{
+  --bg:#eceef2; --panel:#ffffff; --panel2:#f3f4f8; --line:#d5d9e2;
+  --fg:#171a22; --muted:#586074;
+  --accent:#e6a21f; --accent-ink:#1b1403; --accent-text:#8a5700;
+  --ok:#1c8a53; --err:#c43d31;
+  --c-img:#1f6fd1; --c-aud:#7a3fd1; --c-vid:#c2285c; --c-dat:#12806c; --c-oth:#5b6272;
+  color-scheme:light;
+}
+:root[data-theme="dark"]{
+  --bg:#12141a; --panel:#191c24; --panel2:#20242f; --line:#2c313d;
+  --fg:#e8eaf0; --muted:#9aa1b2;
+  --accent:#f2b134; --accent-ink:#1b1403; --accent-text:#f2b134;
+  --ok:#62c78c; --err:#f27468;
+  --c-img:#74b4ff; --c-aud:#c9a0ff; --c-vid:#ff93b4; --c-dat:#6fd8c4; --c-oth:#b5bbc8;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0; background:var(--bg); color:var(--fg);
+  font:15px/1.5 var(--f-body);
+  padding-left:max(16px,env(safe-area-inset-left,0px));
+  padding-right:max(16px,env(safe-area-inset-right,0px));
+  padding-block:0 48px;
+}
+button,select,input{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.wrap{max-width:1180px;margin:0 auto}
+
+/* header */
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-block:18px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:10px;font-family:var(--f-display);font-weight:800;font-size:19px;letter-spacing:.01em}
+.brand svg{flex:none}
+.top-r{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.chip{display:inline-flex;align-items:center;gap:8px;padding:5px 10px;border:1px solid var(--line);border-radius:999px;font:500 12px/1 var(--f-mono);color:var(--muted);background:var(--panel)}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--muted)}
+.dot.ok{background:var(--ok)} .dot.busy{background:var(--accent)} .dot.bad{background:var(--err)}
+.ghost{display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border:1px solid var(--line);background:var(--panel);border-radius:8px;font-size:13px}
+.ghost:hover{border-color:var(--muted)}
+
+/* hero */
+.hero{padding-block:14px 22px;max-width:780px}
+.hl{background:linear-gradient(transparent 62%,color-mix(in srgb,var(--accent) 45%,transparent) 62%)}
+h1{font:800 clamp(30px,5.2vw,52px)/1.04 var(--f-display);margin:0 0 12px;letter-spacing:-.02em;text-wrap:balance}
+.hero p{margin:0;color:var(--muted);font-size:16px;max-width:60ch}
+
+/* dropzone */
+.drop{
+  position:relative;display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap;
+  padding:26px 28px;border:1.5px dashed var(--line);border-radius:12px;background:var(--panel);
+  transition:border-color .15s,background .15s;
+}
+.drop.over{
+  border:1.5px solid var(--accent);
+  background:repeating-linear-gradient(-45deg,color-mix(in srgb,var(--accent) 10%,var(--panel)) 0 12px,var(--panel) 12px 24px);
+}
+.drop-t{display:flex;align-items:center;gap:16px;min-width:0}
+.drop.compact{padding:16px 22px}
+.drop.compact .kinds,.drop.compact .drop-ic{display:none}
+.drop.compact p{display:none}
+.drop:not(.compact){padding:44px 32px;border-width:2px}
+.drop:not(.compact) .drop-ic{width:64px;height:64px;border-radius:14px}
+.drop:not(.compact) h2{font-size:24px}
+.kinds{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.kinds .pill{padding:3px 10px}
+.drop-ic{flex:none;width:46px;height:46px;border-radius:10px;display:grid;place-items:center;background:var(--panel2);border:1px solid var(--line);color:var(--accent-text)}
+.drop h2{margin:0;font:700 19px/1.25 var(--f-display)}
+.drop p{margin:2px 0 0;color:var(--muted);font-size:13.5px}
+.drop-b{display:flex;gap:10px;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:10px 16px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);font-weight:600;font-size:14px}
+.btn:hover:not(:disabled){border-color:var(--muted)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.primary:hover:not(:disabled){filter:brightness(1.07)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+
+/* workspace */
+.work{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;margin-top:18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;min-width:0}
+.card-h{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 16px;border-bottom:1px solid var(--line)}
+.card-h h3{margin:0;font:700 16px/1.2 var(--f-display)}
+.card-h small{color:var(--muted);font:400 12px var(--f-mono)}
+.link{background:none;border:0;padding:4px 2px;color:var(--muted);font-size:13px;text-decoration:underline;text-underline-offset:3px}
+.link:hover{color:var(--fg)}
+
+/* queue */
+.queue{list-style:none;margin:0;padding:0}
+.row{
+  display:grid;grid-template-columns:62px minmax(0,1fr) auto minmax(110px,150px) auto;align-items:center;gap:12px;
+  padding:12px 16px;border-bottom:1px solid var(--line);
+}
+.row:last-child{border-bottom:0}
+.pill{--c:var(--c-oth);display:inline-block;text-align:center;padding:3px 0;border-radius:5px;font:500 11px/1.4 var(--f-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--c);background:color-mix(in srgb,var(--c) 15%,transparent);border:1px solid color-mix(in srgb,var(--c) 35%,transparent)}
+.pill.img{--c:var(--c-img)} .pill.aud{--c:var(--c-aud)} .pill.vid{--c:var(--c-vid)} .pill.dat{--c:var(--c-dat)}
+.nm{min-width:0}
+.nm b{display:block;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nm small{display:block;color:var(--muted);font:400 12px/1.5 var(--f-mono);overflow-wrap:anywhere}
+.tag{margin-left:8px;padding:1px 6px;border-radius:4px;border:1px solid var(--line);color:var(--muted);font:500 10.5px var(--f-mono);text-transform:uppercase;letter-spacing:.05em}
+.errmsg{color:var(--err)!important}
+.tg{display:flex;align-items:center;gap:8px;color:var(--muted)}
+.tg select{background:var(--panel2);border:1px solid var(--line);border-radius:7px;padding:6px 8px;font:500 13px var(--f-mono);min-width:92px}
+.st{min-width:0;font:400 12.5px/1.35 var(--f-mono);color:var(--muted)}
+.st .ok{color:var(--ok)} .st .bad{color:var(--err)}
+.bar{margin-top:6px;height:4px;background:var(--panel2);border-radius:2px;overflow:hidden}
+.bar i{display:block;height:100%;width:0;background:var(--accent);transition:width .15s}
+.row[data-status="done"] .bar i{background:var(--ok);width:100%}
+.row[data-status="idle"] .bar,.row[data-status="error"] .bar{display:none}
+.acts{display:flex;gap:6px;align-items:center;justify-content:flex-end}
+.ib{width:32px;height:32px;display:grid;place-items:center;background:transparent;border:1px solid transparent;border-radius:7px;color:var(--muted)}
+.btn.sm{padding:7px 12px;font-size:13px}
+.src{padding:4px 8px;border-radius:6px;border:1px solid var(--line);background:var(--panel2);font:500 12px var(--f-mono);color:var(--muted);text-transform:uppercase}
+.ib:hover:not(:disabled){background:var(--panel2);border-color:var(--line);color:var(--fg)}
+.ib:disabled{opacity:.3;cursor:not-allowed}
+.empty{padding:36px 16px;text-align:center;color:var(--muted)}
+.empty p{margin:0 0 12px}
+.qf{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:14px 16px;border-top:1px solid var(--line);background:var(--panel2);border-radius:0 0 12px 12px}
+.qf .sum{font:400 13px var(--f-mono);color:var(--muted)}
+.qf .bs{display:flex;gap:10px;flex-wrap:wrap}
+@media (max-width:620px){
+  .row{grid-template-columns:54px minmax(0,1fr) auto;grid-template-areas:"p n a" "t t t" "s s s";row-gap:10px}
+  .row .pill{grid-area:p} .row .nm{grid-area:n} .row .acts{grid-area:a} .row .tg{grid-area:t} .row .st{grid-area:s}
+}
+
+/* inspector panel */
+.panel summary{cursor:pointer;padding:14px 16px;font:700 15px var(--f-display);list-style:none;display:flex;gap:12px;align-items:baseline;flex-wrap:wrap}
+.panel summary::-webkit-details-marker{display:none}
+.panel summary::before{content:"+";display:inline-grid;place-items:center;width:20px;height:20px;border-radius:5px;background:var(--panel2);border:1px solid var(--line);font:500 14px var(--f-mono)}
+.panel[open] summary::before{content:"−"}
+.panel summary small{font:400 12.5px var(--f-body);color:var(--muted)}
+.panel[open] summary{border-bottom:1px solid var(--line)}
+.tabs{display:flex;gap:2px;padding:8px 8px 0;border-bottom:1px solid var(--line);overflow-x:auto}
+.tab{--c:var(--c-oth);flex:none;display:flex;align-items:center;gap:6px;padding:8px 8px;border:0;border-bottom:2px solid transparent;background:none;color:var(--muted);font-weight:500;font-size:13.5px;border-radius:6px 6px 0 0}
+.tab[data-tab="img"]{--c:var(--c-img)} .tab[data-tab="aud"]{--c:var(--c-aud)} .tab[data-tab="vid"]{--c:var(--c-vid)} .tab[data-tab="dat"]{--c:var(--c-dat)}
+.tab:hover{color:var(--fg)}
+.tab[aria-selected="true"]{color:var(--fg);border-bottom-color:var(--c)}
+.tab .n{min-width:18px;padding:0 5px;border-radius:9px;background:var(--panel2);color:var(--muted);font:500 11px/18px var(--f-mono);text-align:center}
+.tab[aria-selected="true"] .n{background:color-mix(in srgb,var(--c) 22%,transparent);color:var(--fg)}
+.pane{padding:16px}
+.pane h4{margin:0 0 10px;font:600 12px var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chips label{position:relative}
+.chips input{position:absolute;opacity:0;inset:0;cursor:pointer;margin:0}
+.chips span{display:block;padding:7px 12px;border:1px solid var(--line);border-radius:7px;background:var(--panel2);font:500 13px var(--f-mono)}
+.chips input:checked+span{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.chips input:focus-visible+span{outline:2px solid var(--accent);outline-offset:2px}
+.chips input:disabled+span{opacity:.4;text-decoration:line-through}
+.chips input:not(:disabled):not(:checked)+span:hover{border-color:var(--muted)}
+.note{margin:10px 0 0;color:var(--muted);font-size:13px;min-height:2.9em}
+.opts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:16px;padding-top:16px;border-top:1px solid var(--line)}
+.field{display:grid;gap:5px;min-width:0;align-content:start}
+.field.wide{grid-column:1/-1}
+.field>span{font-size:12.5px;color:var(--muted)}
+.field select,.field input[type=number],.field input[type=text]{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:7px;padding:7px 9px;font-size:14px}
+.field input[type=color]{width:100%;height:34px;padding:2px;background:var(--panel2);border:1px solid var(--line);border-radius:7px}
+.field input[type=range]{width:100%;accent-color:var(--accent)}
+.field .val{font:500 12px var(--f-mono);color:var(--fg)}
+.chk{display:flex;gap:9px;align-items:flex-start;font-size:13.5px;cursor:pointer}
+.chk input{margin-top:3px;accent-color:var(--accent);width:16px;height:16px;flex:none}
+.chk small{display:block;color:var(--muted);font-size:12px}
+.sizes{display:flex;flex-wrap:wrap;gap:8px 12px}
+.sizes label{display:flex;align-items:center;gap:5px;font:500 13px var(--f-mono)}
+.sizes input{accent-color:var(--accent)}
+.warn{margin:0;padding:10px 12px;border:1px solid color-mix(in srgb,var(--accent) 45%,transparent);border-radius:8px;background:color-mix(in srgb,var(--accent) 9%,transparent);font-size:13px}
+
+/* footer */
+.foot{margin-top:26px;color:var(--muted);font-size:13px;display:flex;gap:18px;flex-wrap:wrap;justify-content:space-between}
+.foot p{margin:0;max-width:70ch}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <svg width="28" height="28" viewBox="0 0 28 28" fill="none" aria-hidden="true">
+        <rect x="2" y="2" width="16" height="16" rx="3" stroke="currentColor" stroke-width="2"/>
+        <rect x="10" y="10" width="16" height="16" rx="3" fill="var(--accent)"/>
+        <path d="M15 18h6m0 0-2.5-2.5M21 18l-2.5 2.5" stroke="var(--accent-ink)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      Nightmare Convert
+    </div>
+    <div class="top-r">
+      <span class="chip" title="Konvertatsiya brauzerda bajariladi"><i class="dot ok"></i>Fayllar serverga yuklanmaydi</span>
+      <span class="chip" id="engine"><i class="dot" id="engine-dot"></i><span id="engine-txt">ffmpeg: kerak bo‘lganda</span></span>
+      <button class="ghost" id="theme" type="button" aria-label="Mavzuni almashtirish">
+        <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 1.8a6.2 6.2 0 0 1 0 12.4z" fill="currentColor"/></svg>
+        Mavzu
+      </button>
+    </div>
+  </header>
+
+  <section class="hero">
+    <h1>Har qanday faylni <span class="hl">kerakli formatga</span> o‘tkazing</h1>
+    <p>Rasm, musiqa, video yoki boshqa fayl tashlang. Qaysi formatga o‘tishini tanlang va tayyor faylni yuklab oling.</p>
+  </section>
+
+  <div class="drop" id="drop" role="button" tabindex="0" aria-label="Fayllarni tanlash yoki shu yerga tashlash">
+    <div class="drop-t">
+      <div class="drop-ic" aria-hidden="true">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4m0 0-4 4m4-4 4 4"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
+      </div>
+      <div>
+        <h2>Fayllarni shu yerga tashlang</h2>
+        <p>yoki «Fayl tanlash» tugmasini bosing. Bir vaqtda bir nechta fayl mumkin.</p>
+        <div class="kinds"><span class="pill img">Rasm</span><span class="pill aud">Audio</span><span class="pill vid">Video</span><span class="pill dat">Ma’lumot</span><span class="pill">Boshqa</span></div>
+      </div>
+    </div>
+    <div class="drop-b">
+      <button class="btn primary" type="button" id="pick">Fayl tanlash</button>
+    </div>
+    <input type="file" id="file" multiple hidden>
+  </div>
+
+  <div class="work">
+    <section class="card" id="qcard" aria-label="Navbat" hidden>
+      <div class="card-h">
+        <h3>Navbat</h3>
+        <div style="display:flex;gap:14px;align-items:center">
+          <small id="qcount">0 fayl</small>
+          <button class="link" type="button" id="clear">Tozalash</button>
+        </div>
+      </div>
+      <ul class="queue" id="queue"></ul>
+      <div class="qf">
+        <span class="sum" id="sum"></span>
+        <div class="bs">
+          <button class="btn" type="button" id="dlall" disabled>ZIP qilib yuklab olish</button>
+          <button class="btn primary" type="button" id="go">Konvertatsiya qilish</button>
+        </div>
+      </div>
+    </section>
+
+    <details class="card panel" id="panel" hidden>
+      <summary>Qo‘shimcha sozlamalar <small>o‘lcham, sifat, bitreyt va boshqalar</small></summary>
+      <div class="tabs" role="tablist" id="tabs"></div>
+
+      <!-- IMAGE -->
+      <div class="pane" id="pane-img" role="tabpanel">
+        <h4>Chiqish formati</h4>
+        <div class="chips" id="fmt-img"></div>
+        <p class="note" id="note-img"></p>
+        <div class="opts">
+          <label class="field wide"><span>O‘lcham</span>
+            <select id="img-mode">
+              <option value="orig">Asl o‘lcham</option>
+              <option value="scale">Masshtab (%)</option>
+              <option value="max">Eng uzun tomon (px)</option>
+              <option value="pot">Ikkining darajasi (POT)</option>
+            </select>
+          </label>
+          <label class="field" id="img-scale-wrap" hidden><span>Masshtab, %</span><input type="number" id="img-scale" value="100" min="1" max="1600"></label>
+          <label class="field" id="img-max-wrap" hidden><span>Eng uzun tomon, px</span><input type="number" id="img-max" value="512" min="1" max="16384"></label>
+          <label class="field" id="img-pot-wrap" hidden><span>POT yaxlitlash</span>
+            <select id="img-pot"><option value="near">Eng yaqiniga</option><option value="up">Yuqoriga</option><option value="down">Pastga</option></select>
+          </label>
+          <label class="field wide" data-t="jpg webp"><span>Sifat <b class="val" id="img-q-v">90</b></span><input type="range" id="img-q" min="40" max="100" value="90"></label>
+          <label class="field" data-t="jpg bmp"><span>Shaffoflik o‘rniga fon</span><input type="color" id="img-bg" value="#000000"></label>
+          <div class="field wide" data-t="ico"><span>Belgi o‘lchamlari (px)</span>
+            <div class="sizes" id="ico-sizes">
+              <label><input type="checkbox" value="16" checked>16</label>
+              <label><input type="checkbox" value="32" checked>32</label>
+              <label><input type="checkbox" value="48" checked>48</label>
+              <label><input type="checkbox" value="64">64</label>
+              <label><input type="checkbox" value="128">128</label>
+              <label><input type="checkbox" value="256" checked>256</label>
+            </div>
+          </div>
+          <label class="chk wide field"><input type="checkbox" id="img-pixel"><span style="color:var(--fg)">Piksel-art<small>Kattalashtirganda xiralashtirmaydi, piksellar aniq qoladi.</small></span></label>
+        </div>
+      </div>
+
+      <!-- AUDIO -->
+      <div class="pane" id="pane-aud" role="tabpanel" hidden>
+        <h4>Chiqish formati</h4>
+        <div class="chips" id="fmt-aud"></div>
+        <p class="note" id="note-aud"></p>
+        <div class="opts">
+          <label class="field"><span>Kanallar</span>
+            <select id="aud-ch"><option value="keep">Asl</option><option value="1">Mono</option><option value="2">Stereo</option></select>
+          </label>
+          <label class="field"><span>Namuna chastotasi</span>
+            <select id="aud-sr"><option value="keep">Asl</option><option value="22050">22 050 Hz</option><option value="44100">44 100 Hz</option><option value="48000">48 000 Hz</option></select>
+          </label>
+          <label class="field" data-t="mp3 ogg opus m4a"><span>Bitreyt</span>
+            <select id="aud-br"><option>96</option><option>128</option><option>160</option><option selected>192</option><option>256</option><option>320</option></select>
+          </label>
+          <label class="chk field wide"><input type="checkbox" id="aud-norm"><span style="color:var(--fg)">Ovoz balandligini tenglash<small>Eng baland nuqta −1 dB ga keltiriladi.</small></span></label>
+          <label class="chk field wide"><input type="checkbox" id="aud-trim"><span style="color:var(--fg)">Boshi va oxiridagi sukunatni kesish<small>Qisqa effektlar uchun foydali.</small></span></label>
+        </div>
+      </div>
+
+      <!-- VIDEO -->
+      <div class="pane" id="pane-vid" role="tabpanel" hidden>
+        <h4>Chiqish formati</h4>
+        <div class="chips" id="fmt-vid"></div>
+        <p class="note" id="note-vid"></p>
+        <div class="opts">
+          <p class="warn wide field">Video brauzer ichida, protsessoringizda o‘giriladi. Uzun fayllar sekin bo‘lishi mumkin, 500 MB dan kattasini tavsiya qilmaymiz.</p>
+          <label class="field" data-t="mp4 webm ogv"><span>Sifat</span>
+            <select id="vid-q"><option value="high">Yuqori</option><option value="mid" selected>O‘rtacha</option><option value="low">Past (kichik hajm)</option></select>
+          </label>
+          <label class="field" data-t="mp4 webm ogv gif"><span>Maksimal balandlik</span>
+            <select id="vid-h"><option value="keep">Asl</option><option value="1080">1080p</option><option value="720">720p</option><option value="480">480p</option><option value="360">360p</option></select>
+          </label>
+          <label class="field" data-t="mp4 webm ogv gif"><span>Kadr tezligi</span>
+            <select id="vid-fps"><option value="keep">Asl (GIF uchun 12)</option><option value="60">60 FPS</option><option value="30">30 FPS</option><option value="24">24 FPS</option><option value="15">15 FPS</option><option value="12">12 FPS</option></select>
+          </label>
+          <label class="chk field wide" data-t="mp4 webm ogv"><input type="checkbox" id="vid-mute"><span style="color:var(--fg)">Ovozsiz<small>Ovoz yo‘lini olib tashlaydi.</small></span></label>
+        </div>
+      </div>
+
+      <!-- DATA -->
+      <div class="pane" id="pane-dat" role="tabpanel" hidden>
+        <h4>Chiqish formati</h4>
+        <div class="chips" id="fmt-dat"></div>
+        <p class="note" id="note-dat"></p>
+        <div class="opts">
+          <label class="field" data-t="json"><span>JSON ko‘rinishi</span>
+            <select id="dat-indent"><option value="2">2 ta bo‘shliq</option><option value="4">4 ta bo‘shliq</option><option value="tab">Tab</option><option value="min">Siqilgan</option></select>
+          </label>
+          <label class="field" data-t="xml"><span>XML ildiz tegi</span><input type="text" id="dat-root" value="root"></label>
+          <label class="chk field wide"><input type="checkbox" id="dat-infer" checked><span style="color:var(--fg)">CSV dagi sonlarni raqam sifatida o‘qish<small>«25» matn emas, raqam bo‘lib chiqadi. true va false ham tanib olinadi.</small></span></label>
+        </div>
+      </div>
+
+      <!-- OTHER -->
+      <div class="pane" id="pane-oth" role="tabpanel" hidden>
+        <h4>Chiqish formati</h4>
+        <div class="chips" id="fmt-oth"></div>
+        <p class="note" id="note-oth"></p>
+        <div class="opts"><p class="warn wide field">Boshqa turdagi fayllar uchun faqat arxivlash va matnga o‘tkazish mavjud.</p></div>
+      </div>
+    </details>
+  </div>
+
+  <footer class="foot">
+    <p>Barcha konvertatsiya brauzeringizda bajariladi. Video va ba’zi audio formatlar uchun ffmpeg dvigateli (taxminan 30 MB) birinchi ishlatishda bir marta yuklanadi.</p>
+    <p>Nightmare Games</p>
+  </footer>
+</div>
+
+<script>
+'use strict';
+/* ---------- helpers ---------- */
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+const fmtBytes = n => n < 1024 ? n + ' B' : n < 1048576 ? (n / 1024).toFixed(1) + ' KB' : n < 1073741824 ? (n / 1048576).toFixed(1) + ' MB' : (n / 1073741824).toFixed(2) + ' GB';
+const extOf = name => (name.match(/\.([^.]+)$/) || [, ''])[1].toLowerCase();
+const baseName = name => name.replace(/\.[^.]+$/, '');
+const tick = () => new Promise(r => setTimeout(r, 0));
+const clamp01 = p => Math.max(0, Math.min(1, p || 0));
+
+/* ---------- formats ---------- */
+const FORMATS = {
+  img: { label: 'Rasm', targets: ['png', 'jpg', 'webp', 'bmp', 'tga', 'ico'] },
+  aud: { label: 'Audio', targets: ['mp3', 'wav', 'ogg', 'opus', 'flac', 'm4a'] },
+  vid: { label: 'Video', targets: ['mp4', 'webm', 'ogv', 'gif', 'mp3'] },
+  dat: { label: 'Ma’lumot', targets: ['json', 'csv', 'tsv', 'yaml', 'xml'] },
+  oth: { label: 'Boshqa', targets: ['zip', 'base64'] }
+};
+const NOTES = {
+  'img:png': 'Yo‘qotishsiz, shaffoflik bor. Sprite va interfeys uchun.',
+  'img:jpg': 'Kichik hajm, shaffoflik yo‘q. Fon va fotosuratlar uchun.',
+  'img:webp': 'PNG dan kichikroq, shaffoflik bor. Web o‘yinlar uchun.',
+  'img:bmp': 'Siqilmagan 24-bit rasm. Eski vositalar uchun.',
+  'img:tga': 'Siqilmagan 32-bit RGBA. Ko‘p dvigatel va 3D paketlar o‘qiydi.',
+  'img:ico': 'PNG ichiga o‘ralgan ko‘p o‘lchamli belgi. Windows ilova belgisi uchun.',
+  'aud:mp3': 'Hamma joyda ochiladi. Loop qilinganda boshida kichik bo‘shliq qolishi mumkin.',
+  'aud:wav': 'Siqilmagan 16-bit PCM. Qisqa effektlar uchun eng xavfsiz tanlov.',
+  'aud:ogg': 'Vorbis. O‘yin musiqasi uchun keng ishlatiladi, loop bo‘shliqsiz.',
+  'aud:opus': 'Kichik hajmda yaxshi sifat. Dialog va ovoz uchun qulay.',
+  'aud:flac': 'Yo‘qotishsiz siqish. Asl nusxani saqlash uchun.',
+  'aud:m4a': 'AAC. iOS va Safari uchun qulay.',
+  'vid:mp4': 'H.264 va AAC. Deyarli hamma qurilmada ochiladi.',
+  'vid:webm': 'VP8. Web uchun mos format.',
+  'vid:ogv': 'Ogg Theora. Godot ichida video ijro etish uchun odatiy format.',
+  'vid:gif': 'Qisqa animatsiya. Hajm tez o‘sadi, 12 FPS va 480p yetarli.',
+  'vid:mp3': 'Videodan faqat ovozni ajratib oladi.',
+  'dat:json': 'Barcha dvigatel va tillar o‘qiydi.',
+  'dat:csv': 'Jadval ko‘rinishi. Excel va Google Sheets bilan mos.',
+  'dat:tsv': 'Tab bilan ajratilgan jadval.',
+  'dat:yaml': 'Inson o‘qishi oson konfiguratsiya formati.',
+  'dat:xml': 'Eski vositalar va Android resurslari uchun.',
+  'oth:zip': 'Faylni ZIP arxivga o‘raydi.',
+  'oth:base64': 'Faylni matnga aylantiradi, kodga joylashtirish uchun.'
+};
+const OUT_MIME = { mp3: 'audio/mpeg', wav: 'audio/wav', ogg: 'audio/ogg', opus: 'audio/ogg', flac: 'audio/flac', m4a: 'audio/mp4', mp4: 'video/mp4', webm: 'video/webm', ogv: 'video/ogg', gif: 'image/gif' };
+const labelOf = t => t === 'base64' ? 'Base64' : t.toUpperCase();
+const chipLabel = (cat, t) => cat === 'vid' && t === 'mp3' ? 'MP3 · ovoz' : labelOf(t);
+
+const EXT_CAT = {};
+'png jpg jpeg webp gif bmp svg avif ico tga'.split(' ').forEach(e => EXT_CAT[e] = 'img');
+'mp3 wav ogg oga opus flac m4a aac weba'.split(' ').forEach(e => EXT_CAT[e] = 'aud');
+'mp4 webm mov mkv avi m4v ogv 3gp'.split(' ').forEach(e => EXT_CAT[e] = 'vid');
+'json csv tsv yaml yml xml'.split(' ').forEach(e => EXT_CAT[e] = 'dat');
+function catOf(file) {
+  const e = extOf(file.name);
+  if (EXT_CAT[e]) return EXT_CAT[e];
+  const t = file.type || '';
+  if (t.startsWith('image/')) return 'img';
+  if (t.startsWith('audio/')) return 'aud';
+  if (t.startsWith('video/')) return 'vid';
+  return 'oth';
+}
+
+const WEBP_OK = document.createElement('canvas').toDataURL('image/webp').startsWith('data:image/webp');
+const defaults = { img: WEBP_OK ? 'webp' : 'png', aud: 'mp3', vid: 'mp4', dat: 'csv', oth: 'zip' };
+const items = [];
+let uid = 0, activeTab = 'img', running = false, stopFlag = false;
+
+/* ---------- script loader (libraries are fetched only when needed) ---------- */
+const libCache = {};
+function loadScript(urls) {
+  const key = urls[0];
+  if (libCache[key]) return libCache[key];
+  libCache[key] = (async () => {
+    let lastErr;
+    for (const u of urls) {
+      try {
+        await new Promise((res, rej) => {
+          const s = document.createElement('script');
+          s.src = u; s.onload = res; s.onerror = () => rej(new Error('Yuklanmadi: ' + u));
+          document.head.appendChild(s);
+        });
+        return;
+      } catch (e) { lastErr = e; }
+    }
+    delete libCache[key];
+    throw lastErr;
+  })();
+  return libCache[key];
+}
+const LIBS = {
+  lame: ['https://cdnjs.cloudflare.com/ajax/libs/lamejs/1.2.1/lame.min.js', 'https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js'],
+  jszip: ['https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js', 'https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js'],
+  yaml: ['https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js', 'https://cdn.jsdelivr.net/npm/js-yaml@4.1.0/dist/js-yaml.min.js']
+};
+
+/* ---------- ffmpeg.wasm engine ---------- */
+let ffmpeg = null, ffmpegLoading = null, ffProg = null, ffLog = [];
+function setEngine(text, state) {
+  $('#engine-txt').textContent = text;
+  $('#engine-dot').className = 'dot' + (state ? ' ' + state : '');
+}
+async function fetchBlobURL(url, type, onProgress) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('HTTP ' + res.status + ' ' + url);
+  const total = +res.headers.get('content-length') || 0;
+  const reader = res.body.getReader();
+  const chunks = []; let got = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value); got += value.length;
+    if (onProgress && total) onProgress(Math.min(1, got / total));
+  }
+  return URL.createObjectURL(new Blob(chunks, { type }));
+}
+async function getFFmpeg() {
+  if (ffmpeg) return ffmpeg;
+  if (ffmpegLoading) return ffmpegLoading;
+  ffmpegLoading = (async () => {
+    let lastErr;
+    for (const base of ['https://unpkg.com', 'https://cdn.jsdelivr.net/npm']) {
+      try {
+        setEngine('ffmpeg yuklanmoqda…', 'busy');
+        await loadScript([`${base}/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js`]);
+        const root = `${base}/@ffmpeg/core@0.12.6/dist/umd`;
+        const coreURL = await fetchBlobURL(`${root}/ffmpeg-core.js`, 'text/javascript');
+        const wasmURL = await fetchBlobURL(`${root}/ffmpeg-core.wasm`, 'application/wasm',
+          p => setEngine(`ffmpeg yuklanmoqda ${Math.round(p * 100)}%`, 'busy'));
+        const classWorkerURL = await fetchBlobURL(`${base}/@ffmpeg/ffmpeg@0.12.10/dist/umd/814.ffmpeg.js`, 'text/javascript');
+        const inst = new window.FFmpegWASM.FFmpeg();
+        inst.on('progress', ({ progress }) => { if (ffProg) ffProg(clamp01(progress)); });
+        inst.on('log', ({ message }) => { ffLog.push(message); if (ffLog.length > 40) ffLog.shift(); });
+        await inst.load({ coreURL, wasmURL, classWorkerURL });
+        ffmpeg = inst;
+        setEngine('ffmpeg tayyor', 'ok');
+        return inst;
+      } catch (e) { lastErr = e; }
+    }
+    ffmpegLoading = null;
+    setEngine('ffmpeg yuklanmadi', 'bad');
+    throw new Error('ffmpeg dvigatelini yuklab bo‘lmadi. Internetni tekshiring. ' + (lastErr && lastErr.message ? lastErr.message : ''));
+  })();
+  return ffmpegLoading;
+}
+async function runFF(inBytes, inName, args, outName, onProg) {
+  const ff = await getFFmpeg();
+  ffProg = onProg; ffLog = [];
+  await ff.writeFile(inName, inBytes);
+  try {
+    const code = await ff.exec(['-y', '-i', inName, ...args, outName]);
+    if (code !== 0) throw new Error('ffmpeg xatosi (' + code + '). ' + ffLog.slice(-2).join(' '));
+    return await ff.readFile(outName);
+  } finally {
+    ffProg = null;
+    try { await ff.deleteFile(inName); } catch (e) {}
+    try { await ff.deleteFile(outName); } catch (e) {}
+  }
+}
+
+/* ---------- image ---------- */
+function tgaToCanvas(b) {
+  const idLen = b[0], cmType = b[1], type = b[2];
+  const w = b[12] | (b[13] << 8), h = b[14] | (b[15] << 8), bpp = b[16], desc = b[17];
+  if (cmType !== 0 || ![2, 3, 10, 11].includes(type) || ![8, 24, 32].includes(bpp)) throw new Error('Bu TGA turi qo‘llab-quvvatlanmaydi');
+  if (!w || !h) throw new Error('TGA sarlavhasi noto‘g‘ri');
+  const bytes = bpp / 8, raw = new Uint8Array(w * h * bytes);
+  let p = 18 + idLen;
+  if (type === 2 || type === 3) raw.set(b.subarray(p, p + raw.length));
+  else {
+    let o = 0;
+    while (o < raw.length && p < b.length) {
+      const hd = b[p++], n = (hd & 127) + 1;
+      if (hd & 128) { for (let i = 0; i < n && o < raw.length; i++) { raw.set(b.subarray(p, p + bytes), o); o += bytes; } p += bytes; }
+      else { const len = Math.min(n * bytes, raw.length - o); raw.set(b.subarray(p, p + len), o); o += len; p += n * bytes; }
+    }
+  }
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const ctx = c.getContext('2d'), img = ctx.createImageData(w, h), d = img.data, top = !!(desc & 0x20);
+  for (let y = 0; y < h; y++) {
+    const dy = top ? y : h - 1 - y;
+    for (let x = 0; x < w; x++) {
+      const s = (y * w + x) * bytes, t = (dy * w + x) * 4;
+      if (bpp === 8) { d[t] = d[t + 1] = d[t + 2] = raw[s]; d[t + 3] = 255; }
+      else { d[t] = raw[s + 2]; d[t + 1] = raw[s + 1]; d[t + 2] = raw[s]; d[t + 3] = bpp === 32 ? raw[s + 3] : 255; }
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  return c;
+}
+async function loadBitmap(file) {
+  if (extOf(file.name) === 'tga') return tgaToCanvas(new Uint8Array(await file.arrayBuffer()));
+  const url = URL.createObjectURL(file);
+  try {
+    const img = new Image(); img.src = url;
+    try { await img.decode(); } catch (e) { throw new Error('Rasmni o‘qib bo‘lmadi'); }
+    const w = img.naturalWidth || 512, h = img.naturalHeight || 512;
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    c.getContext('2d').drawImage(img, 0, 0, w, h);
+    return c;
+  } finally { URL.revokeObjectURL(url); }
+}
+function potOf(n, mode) {
+  const lo = 2 ** Math.floor(Math.log2(n)), hi = lo < n ? lo * 2 : lo;
+  if (mode === 'up') return hi;
+  if (mode === 'down') return lo;
+  return (n - lo) <= (hi - n) ? lo : hi;
+}
+function targetSize(w, h, o) {
+  if (o.mode === 'scale') return [Math.max(1, Math.round(w * o.scale / 100)), Math.max(1, Math.round(h * o.scale / 100))];
+  if (o.mode === 'max') { const f = o.max / Math.max(w, h); return [Math.max(1, Math.round(w * f)), Math.max(1, Math.round(h * f))]; }
+  if (o.mode === 'pot') return [potOf(w, o.pot), potOf(h, o.pot)];
+  return [w, h];
+}
+function resizeCanvas(src, nw, nh, pixel) {
+  if (nw === src.width && nh === src.height) return src;
+  const c = document.createElement('canvas'); c.width = nw; c.height = nh;
+  const x = c.getContext('2d');
+  x.imageSmoothingEnabled = !pixel;
+  if (!pixel) x.imageSmoothingQuality = 'high';
+  x.drawImage(src, 0, 0, nw, nh);
+  return c;
+}
+function flatten(src, color) {
+  const c = document.createElement('canvas'); c.width = src.width; c.height = src.height;
+  const x = c.getContext('2d'); x.fillStyle = color; x.fillRect(0, 0, c.width, c.height); x.drawImage(src, 0, 0);
+  return c;
+}
+async function canvasBlob(c, type, q) {
+  const b = await new Promise(res => c.toBlob(res, type, q));
+  if (!b) throw new Error('Rasm kodlanmadi (juda katta bo‘lishi mumkin)');
+  if (b.type !== type) throw new Error('Brauzer ' + type + ' formatini kodlay olmaydi');
+  return b;
+}
+function encodeBMP(c) {
+  const w = c.width, h = c.height, d = c.getContext('2d').getImageData(0, 0, w, h).data;
+  const rowSize = Math.ceil(w * 3 / 4) * 4, size = 54 + rowSize * h;
+  const buf = new ArrayBuffer(size), v = new DataView(buf), u = new Uint8Array(buf);
+  u[0] = 0x42; u[1] = 0x4D; v.setUint32(2, size, true); v.setUint32(10, 54, true);
+  v.setUint32(14, 40, true); v.setInt32(18, w, true); v.setInt32(22, h, true);
+  v.setUint16(26, 1, true); v.setUint16(28, 24, true); v.setUint32(34, rowSize * h, true);
+  v.setInt32(38, 2835, true); v.setInt32(42, 2835, true);
+  let p = 54;
+  for (let y = h - 1; y >= 0; y--) {
+    let o = p;
+    for (let x = 0; x < w; x++) { const i = (y * w + x) * 4; u[o++] = d[i + 2]; u[o++] = d[i + 1]; u[o++] = d[i]; }
+    p += rowSize;
+  }
+  return new Blob([buf], { type: 'image/bmp' });
+}
+function encodeTGA(c) {
+  const w = c.width, h = c.height;
+  if (w > 65535 || h > 65535) throw new Error('TGA uchun rasm juda katta');
+  const d = c.getContext('2d').getImageData(0, 0, w, h).data;
+  const out = new Uint8Array(18 + w * h * 4);
+  out[2] = 2; out[12] = w & 255; out[13] = w >> 8; out[14] = h & 255; out[15] = h >> 8; out[16] = 32; out[17] = 0x28;
+  let o = 18;
+  for (let i = 0; i < w * h; i++) { out[o++] = d[i * 4 + 2]; out[o++] = d[i * 4 + 1]; out[o++] = d[i * 4]; out[o++] = d[i * 4 + 3]; }
+  return new Blob([out], { type: 'image/x-tga' });
+}
+async function encodeICO(src, sizes, pixel) {
+  if (!sizes.length) throw new Error('Kamida bitta belgi o‘lchamini tanlang');
+  const pngs = [];
+  for (const s of sizes) {
+    const c = document.createElement('canvas'); c.width = c.height = s;
+    const x = c.getContext('2d'); x.imageSmoothingEnabled = !pixel;
+    if (!pixel) x.imageSmoothingQuality = 'high';
+    const k = Math.min(s / src.width, s / src.height), dw = Math.max(1, Math.round(src.width * k)), dh = Math.max(1, Math.round(src.height * k));
+    x.drawImage(src, Math.round((s - dw) / 2), Math.round((s - dh) / 2), dw, dh);
+    pngs.push(new Uint8Array(await (await canvasBlob(c, 'image/png')).arrayBuffer()));
+  }
+  const n = sizes.length; let offset = 6 + 16 * n;
+  const total = offset + pngs.reduce((a, p) => a + p.length, 0);
+  const buf = new ArrayBuffer(total), v = new DataView(buf), u = new Uint8Array(buf);
+  v.setUint16(2, 1, true); v.setUint16(4, n, true);
+  sizes.forEach((s, i) => {
+    const e = 6 + 16 * i;
+    u[e] = s >= 256 ? 0 : s; u[e + 1] = s >= 256 ? 0 : s;
+    v.setUint16(e + 4, 1, true); v.setUint16(e + 6, 32, true);
+    v.setUint32(e + 8, pngs[i].length, true); v.setUint32(e + 12, offset, true);
+    u.set(pngs[i], offset); offset += pngs[i].length;
+  });
+  return new Blob([buf], { type: 'image/x-icon' });
+}
+async function convertImage(it, o, prog) {
+  let c = await loadBitmap(it.file);
+  prog(0.3);
+  if (it.target === 'ico') return encodeICO(c, o.ico, o.pixel);
+  const [nw, nh] = targetSize(c.width, c.height, o);
+  if (nw * nh > 268435456) throw new Error('Natija rasmi juda katta');
+  c = resizeCanvas(c, nw, nh, o.pixel);
+  prog(0.6);
+  switch (it.target) {
+    case 'png': return canvasBlob(c, 'image/png');
+    case 'webp': return canvasBlob(c, 'image/webp', o.quality);
+    case 'jpg': return canvasBlob(flatten(c, o.bg), 'image/jpeg', o.quality);
+    case 'bmp': return encodeBMP(flatten(c, o.bg));
+    case 'tga': return encodeTGA(c);
+  }
+  throw new Error('Noma’lum format');
+}
+
+/* ---------- audio ---------- */
+const MP3_RATES = [8000, 11025, 12000, 16000, 22050, 24000, 32000, 44100, 48000];
+async function decodeAudio(file) {
+  const ab = await file.arrayBuffer();
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  try { return await ctx.decodeAudioData(ab); } finally { if (ctx.close) ctx.close(); }
+}
+async function processAudio(buf, o, sr) {
+  const ch = o.channels === 'keep' ? Math.min(buf.numberOfChannels, 2) : +o.channels;
+  const len = Math.max(1, Math.ceil(buf.duration * sr));
+  const off = new OfflineAudioContext(ch, len, sr);
+  const src = off.createBufferSource(); src.buffer = buf; src.connect(off.destination); src.start();
+  const out = await off.startRendering();
+  let data = [];
+  for (let i = 0; i < ch; i++) data.push(out.getChannelData(i).slice());
+  if (o.trim) {
+    const thr = 0.002, n = data[0].length; let a = 0, b = n - 1;
+    const loud = i => data.some(d => Math.abs(d[i]) > thr);
+    while (a < n && !loud(a)) a++;
+    while (b > a && !loud(b)) b--;
+    if (a < n) data = data.map(d => d.subarray(a, b + 1));
+  }
+  if (o.norm) {
+    let peak = 0;
+    for (const d of data) for (let i = 0; i < d.length; i++) { const v = Math.abs(d[i]); if (v > peak) peak = v; }
+    if (peak > 0) { const g = 0.891 / peak; for (const d of data) for (let i = 0; i < d.length; i++) d[i] *= g; }
+  }
+  return { data, sampleRate: sr };
+}
+function encodeWAV(d, sr) {
+  const ch = d.length, len = d[0].length, dataLen = len * ch * 2;
+  const buf = new ArrayBuffer(44 + dataLen), v = new DataView(buf);
+  const str = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+  str(0, 'RIFF'); v.setUint32(4, 36 + dataLen, true); str(8, 'WAVE'); str(12, 'fmt ');
+  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, ch, true);
+  v.setUint32(24, sr, true); v.setUint32(28, sr * ch * 2, true); v.setUint16(32, ch * 2, true); v.setUint16(34, 16, true);
+  str(36, 'data'); v.setUint32(40, dataLen, true);
+  let o = 44;
+  for (let i = 0; i < len; i++) for (let c = 0; c < ch; c++) {
+    const s = Math.max(-1, Math.min(1, d[c][i]));
+    v.setInt16(o, s < 0 ? s * 0x8000 : s * 0x7FFF, true); o += 2;
+  }
+  return new Blob([buf], { type: 'audio/wav' });
+}
+async function encodeMP3(d, sr, kbps, onProg) {
+  await loadScript(LIBS.lame);
+  const ch = d.length, enc = new lamejs.Mp3Encoder(ch, sr, kbps);
+  const to16 = a => { const r = new Int16Array(a.length); for (let i = 0; i < a.length; i++) { const s = Math.max(-1, Math.min(1, a[i])); r[i] = s < 0 ? s * 0x8000 : s * 0x7FFF; } return r; };
+  const L = to16(d[0]), R = ch > 1 ? to16(d[1]) : null, chunks = [], step = 1152 * 8;
+  for (let i = 0, k = 0; i < L.length; i += step, k++) {
+    const out = ch > 1 ? enc.encodeBuffer(L.subarray(i, i + step), R.subarray(i, i + step)) : enc.encodeBuffer(L.subarray(i, i + step));
+    if (out.length) chunks.push(new Uint8Array(out));
+    if ((k & 15) === 0) { onProg(i / L.length); await tick(); }
+  }
+  const end = enc.flush(); if (end.length) chunks.push(new Uint8Array(end));
+  return new Blob(chunks, { type: 'audio/mpeg' });
+}
+async function ffAudio(bytes, inName, t, br, o, prog) {
+  const args = ['-vn'];
+  if (o.channels && o.channels !== 'keep') args.push('-ac', o.channels);
+  if (o.rate && o.rate !== 'keep' && t !== 'opus') args.push('-ar', o.rate);
+  const codec = {
+    mp3: ['-c:a', 'libmp3lame', '-b:a', br + 'k'], wav: ['-c:a', 'pcm_s16le'],
+    ogg: ['-c:a', 'libvorbis', '-b:a', br + 'k'], opus: ['-c:a', 'libopus', '-b:a', br + 'k'],
+    flac: ['-c:a', 'flac'], m4a: ['-c:a', 'aac', '-b:a', br + 'k']
+  }[t];
+  const data = await runFF(bytes, inName, [...args, ...codec], 'out.' + t, prog);
+  return new Blob([data], { type: OUT_MIME[t] });
+}
+async function convertAudio(it, o, prog) {
+  const t = it.target;
+  let buf = null;
+  try { buf = await decodeAudio(it.file); } catch (e) { buf = null; }
+  prog(0.1);
+  if (buf) {
+    let sr = o.rate === 'keep' ? buf.sampleRate : +o.rate;
+    if (t === 'mp3' && !MP3_RATES.includes(sr)) sr = 44100;
+    const d = await processAudio(buf, o, sr);
+    prog(0.3);
+    if (t === 'wav') return encodeWAV(d.data, d.sampleRate);
+    if (t === 'mp3') return encodeMP3(d.data, d.sampleRate, o.br, p => prog(0.3 + 0.7 * p));
+    const bytes = new Uint8Array(await encodeWAV(d.data, d.sampleRate).arrayBuffer());
+    return ffAudio(bytes, 'in.wav', t, o.br, {}, p => prog(0.3 + 0.7 * p));
+  }
+  const bytes = new Uint8Array(await it.file.arrayBuffer());
+  return ffAudio(bytes, 'in.' + (extOf(it.file.name) || 'bin'), t, o.br, o, p => prog(0.1 + 0.9 * p));
+}
+
+/* ---------- video ---------- */
+async function convertVideo(it, o, prog) {
+  if (it.file.size > 1.5 * 1073741824) throw new Error('Fayl juda katta (brauzer chegarasi taxminan 2 GB)');
+  const t = it.target, gif = t === 'gif';
+  const hStr = o.height === 'keep' ? (gif ? '480' : null) : o.height;
+  const scale = hStr ? `scale=-2:'trunc(min(${hStr},ih)/2)*2'` : 'scale=trunc(iw/2)*2:trunc(ih/2)*2';
+  const fps = o.fps === 'keep' ? (gif ? '12' : null) : o.fps;
+  const vf = [fps ? `fps=${fps}` : null, scale].filter(Boolean).join(',');
+  const crf = { high: 20, mid: 24, low: 30 }[o.vq], vp8 = { high: 10, mid: 20, low: 32 }[o.vq];
+  const audioArgs = codec => o.mute ? ['-an'] : codec;
+  let args;
+  if (t === 'mp4') args = ['-vf', vf, '-c:v', 'libx264', '-preset', 'veryfast', '-crf', String(crf), '-pix_fmt', 'yuv420p', ...audioArgs(['-c:a', 'aac', '-b:a', '160k']), '-movflags', '+faststart'];
+  else if (t === 'webm') args = ['-vf', vf, '-c:v', 'libvpx', '-crf', String(vp8), '-b:v', '2M', ...audioArgs(['-c:a', 'libvorbis'])];
+  else if (t === 'ogv') args = ['-vf', vf, '-c:v', 'libtheora', '-q:v', { high: '8', mid: '6', low: '4' }[o.vq], ...audioArgs(['-c:a', 'libvorbis', '-q:a', '5'])];
+  else if (gif) args = ['-vf', `${vf},split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse`, '-an', '-loop', '0'];
+  else if (t === 'mp3') args = ['-vn', '-c:a', 'libmp3lame', '-b:a', '192k'];
+  else throw new Error('Noma’lum format');
+  const bytes = new Uint8Array(await it.file.arrayBuffer());
+  const data = await runFF(bytes, 'in.' + (extOf(it.file.name) || 'bin'), args, 'out.' + t, prog);
+  return new Blob([data], { type: t === 'mp3' ? 'audio/mpeg' : OUT_MIME[t] });
+}
+
+/* ---------- data ---------- */
+const NUM_RE = /^-?(0|[1-9]\d*)(\.\d+)?$/;
+const autoType = s => { if (typeof s !== 'string') return s; const t = s.trim(); if (NUM_RE.test(t)) return Number(t); if (t === 'true') return true; if (t === 'false') return false; return s; };
+function parseCSV(text, delim) {
+  const rows = []; let row = [], cur = '', q = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (q) { if (ch === '"') { if (text[i + 1] === '"') { cur += '"'; i++; } else q = false; } else cur += ch; }
+    else if (ch === '"') q = true;
+    else if (ch === delim) { row.push(cur); cur = ''; }
+    else if (ch === '\n' || ch === '\r') { if (ch === '\r' && text[i + 1] === '\n') i++; row.push(cur); cur = ''; rows.push(row); row = []; }
+    else cur += ch;
+  }
+  if (cur !== '' || row.length) { row.push(cur); rows.push(row); }
+  return rows.filter(r => !(r.length === 1 && r[0] === ''));
+}
+function csvToData(text, ext, infer) {
+  let delim = ext === 'tsv' ? '\t' : ',';
+  if (ext === 'csv') { const first = text.split(/\r?\n/, 1)[0]; if (first.includes(';') && !first.includes(',')) delim = ';'; }
+  const rows = parseCSV(text, delim);
+  if (!rows.length) return [];
+  const head = rows[0].map(h => h.trim());
+  return rows.slice(1).map(r => { const o = {}; head.forEach((h, i) => { const v = r[i] === undefined ? '' : r[i]; o[h] = infer ? autoType(v) : v; }); return o; });
+}
+function xmlToObj(node) {
+  const res = {};
+  for (const a of node.attributes) res['@' + a.name] = autoType(a.value);
+  const kids = [...node.children];
+  if (!kids.length) {
+    const t = node.textContent.trim();
+    if (!node.attributes.length) return autoType(t);
+    if (t) res['#text'] = autoType(t);
+    return res;
+  }
+  for (const k of kids) {
+    const v = xmlToObj(k);
+    if (k.nodeName in res) { if (!Array.isArray(res[k.nodeName])) res[k.nodeName] = [res[k.nodeName]]; res[k.nodeName].push(v); }
+    else res[k.nodeName] = v;
+  }
+  return res;
+}
+const safeTag = k => { let t = String(k).replace(/[^A-Za-z0-9_.-]/g, '_'); if (!/^[A-Za-z_]/.test(t)) t = '_' + t; return t; };
+function toXml(v, tag, depth) {
+  const pad = '  '.repeat(depth);
+  if (Array.isArray(v)) return v.map(x => toXml(x, tag, depth)).join('');
+  if (v && typeof v === 'object') {
+    let attrs = '', inner = '';
+    for (const [k, val] of Object.entries(v)) {
+      if (k[0] === '@') attrs += ` ${safeTag(k.slice(1))}="${esc(val)}"`;
+      else if (k === '#text') inner += pad + '  ' + esc(val) + '\n';
+      else inner += toXml(val, safeTag(k), depth + 1);
+    }
+    return `${pad}<${tag}${attrs}>\n${inner}${pad}</${tag}>\n`;
+  }
+  return `${pad}<${tag}>${v == null ? '' : esc(v)}</${tag}>\n`;
+}
+function toTable(data) {
+  let rows = data;
+  if (!Array.isArray(rows)) {
+    const k = rows && typeof rows === 'object' ? Object.keys(rows).find(k => Array.isArray(rows[k])) : null;
+    rows = k ? rows[k] : [rows];
+  }
+  rows = rows.map(r => (r && typeof r === 'object' && !Array.isArray(r)) ? r : { value: r });
+  const cols = [];
+  rows.forEach(r => Object.keys(r).forEach(k => { if (!cols.includes(k)) cols.push(k); }));
+  return { rows, cols };
+}
+function toCSV(data, delim) {
+  const { rows, cols } = toTable(data);
+  const cell = v => {
+    const s = v == null ? '' : typeof v === 'object' ? JSON.stringify(v) : String(v);
+    return (s.includes(delim) || s.includes('"') || /[\r\n]/.test(s)) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  };
+  return [cols.map(cell).join(delim), ...rows.map(r => cols.map(c => cell(r[c])).join(delim))].join('\n') + '\n';
+}
+async function convertData(it, o) {
+  const text = (await it.file.text()).replace(/^﻿/, '');
+  const ext = extOf(it.file.name);
+  let data;
+  try {
+    if (ext === 'json') data = JSON.parse(text);
+    else if (ext === 'csv' || ext === 'tsv') data = csvToData(text, ext, o.infer);
+    else if (ext === 'yaml' || ext === 'yml') { await loadScript(LIBS.yaml); data = jsyaml.load(text); }
+    else if (ext === 'xml') {
+      const doc = new DOMParser().parseFromString(text, 'application/xml');
+      if (doc.querySelector('parsererror')) throw new Error('XML tuzilishi noto‘g‘ri');
+      data = xmlToObj(doc.documentElement);
+    } else throw new Error('Bu formatni o‘qib bo‘lmadi');
+  } catch (e) { throw new Error('Faylni o‘qib bo‘lmadi: ' + e.message); }
+  let out;
+  switch (it.target) {
+    case 'json': out = JSON.stringify(data, null, o.indent === 'min' ? undefined : o.indent === 'tab' ? '\t' : Number(o.indent)) + '\n'; break;
+    case 'csv': out = toCSV(data, ','); break;
+    case 'tsv': out = toCSV(data, '\t'); break;
+    case 'yaml': await loadScript(LIBS.yaml); out = jsyaml.dump(data, { lineWidth: -1 }); break;
+    case 'xml': {
+      const root = safeTag(o.root || 'root');
+      const body = Array.isArray(data) ? { item: data } : (data && typeof data === 'object' ? data : { value: data });
+      out = '<?xml version="1.0" encoding="UTF-8"?>\n' + toXml(body, root, 0); break;
+    }
+    default: throw new Error('Noma’lum format');
+  }
+  return new Blob([out], { type: 'text/plain;charset=utf-8' });
+}
+
+/* ---------- other ---------- */
+async function convertOther(it) {
+  if (it.target === 'zip') {
+    await loadScript(LIBS.jszip);
+    const z = new JSZip(); z.file(it.file.name, it.file);
+    return z.generateAsync({ type: 'blob', compression: 'DEFLATE' });
+  }
+  const url = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error('Fayl o‘qilmadi')); r.readAsDataURL(it.file); });
+  return new Blob([String(url).split(',')[1] || ''], { type: 'text/plain' });
+}
+
+/* ---------- options & naming ---------- */
+function readOpts(cat) {
+  if (cat === 'img') return {
+    mode: $('#img-mode').value, scale: +$('#img-scale').value || 100, max: +$('#img-max').value || 512, pot: $('#img-pot').value,
+    quality: (+$('#img-q').value) / 100, bg: $('#img-bg').value, pixel: $('#img-pixel').checked,
+    ico: $$('#ico-sizes input:checked').map(i => +i.value)
+  };
+  if (cat === 'aud') return { channels: $('#aud-ch').value, rate: $('#aud-sr').value, br: $('#aud-br').value, norm: $('#aud-norm').checked, trim: $('#aud-trim').checked };
+  if (cat === 'vid') return { vq: $('#vid-q').value, height: $('#vid-h').value, fps: $('#vid-fps').value, mute: $('#vid-mute').checked };
+  if (cat === 'dat') return { indent: $('#dat-indent').value, infer: $('#dat-infer').checked, root: $('#dat-root').value };
+  return {};
+}
+function outName(it) {
+  const t = it.target;
+  if (t === 'base64') return it.file.name + '.b64.txt';
+  const ext = t === 'jpg' ? 'jpg' : t === 'yaml' ? 'yaml' : t;
+  return baseName(it.file.name) + '.' + ext;
+}
+
+/* ---------- queue UI ---------- */
+const ICON = {
+  go: '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l11-6.5a1 1 0 0 0 0-1.72l-11-6.5A1 1 0 0 0 8 5.5z"/></svg>',
+  dl: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11m0 0-4-4m4 4 4-4"/><path d="M5 20h14"/></svg>',
+  rm: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>'
+};
+function statusHTML(it) {
+  if (it.status === 'work') return `Jarayonda ${Math.round(it.progress * 100)}%`;
+  if (it.status === 'done') {
+    const pct = Math.round((1 - it.out.size / Math.max(1, it.file.size)) * 100);
+    const delta = pct >= 0 ? '−' + pct + '%' : '+' + Math.abs(pct) + '%';
+    return `<span class="ok">Tayyor</span> · ${fmtBytes(it.out.size)} (${delta})`;
+  }
+  if (it.status === 'error') return '<span class="bad">Xato</span>';
+  return 'Kutmoqda';
+}
+function rowEl(it) {
+  const li = document.createElement('li');
+  li.className = 'row'; li.dataset.id = it.id; li.dataset.status = it.status;
+  const opts = FORMATS[it.cat].targets.filter(t => !(t === 'webp' && !WEBP_OK))
+    .map(t => `<option value="${t}"${t === it.target ? ' selected' : ''}>${esc(chipLabel(it.cat, t))}</option>`).join('');
+  const ext = extOf(it.file.name).toUpperCase() || 'FAYL';
+  li.innerHTML = `
+    <span class="pill ${it.cat}">${FORMATS[it.cat].label}</span>
+    <div class="nm"><b title="${esc(it.file.name)}">${esc(it.file.name)}</b>
+      <small>${fmtBytes(it.file.size)} · ${esc(ext)}${it.sample ? '<span class="tag">namuna</span>' : ''}</small>
+      ${it.status === 'error' ? `<small class="errmsg">${esc(it.error)}</small>` : ''}</div>
+    <label class="tg"><span class="src">${esc(ext)}</span><span aria-hidden="true">→</span><select class="target" aria-label="Chiqish formati: ${esc(it.file.name)}"${it.status === 'work' ? ' disabled' : ''}>${opts}</select></label>
+    <div class="st"><span class="stt">${statusHTML(it)}</span><div class="bar"><i style="width:${Math.round(it.progress * 100)}%"></i></div></div>
+    <div class="acts">
+      ${it.status === 'done'
+        ? '<button class="btn primary sm" type="button" data-act="dl">Yuklab olish</button>'
+        : `<button class="btn sm" type="button" data-act="go"${running ? ' disabled' : ''}>${it.status === 'work' ? 'Jarayonda…' : it.status === 'error' ? 'Qayta urinish' : 'O‘tkazish'}</button>`}
+      <button class="ib" type="button" data-act="rm" title="Olib tashlash" aria-label="Olib tashlash"${it.status === 'work' ? ' disabled' : ''}>${ICON.rm}</button>
+    </div>`;
+  return li;
+}
+function rowOf(it) { return $(`.row[data-id="${it.id}"]`); }
+function updateRow(it) {
+  const old = rowOf(it);
+  if (old) old.replaceWith(rowEl(it)); else renderQueue();
+  updateBar(); updateVisibility();
+}
+function setProgress(it, p) {
+  it.progress = clamp01(p);
+  const li = rowOf(it); if (!li) return;
+  li.querySelector('.bar i').style.width = Math.round(it.progress * 100) + '%';
+  li.querySelector('.stt').innerHTML = statusHTML(it);
+}
+function renderQueue() {
+  const ul = $('#queue'); ul.innerHTML = '';
+  $('#qcard').hidden = items.length === 0;
+  $('#panel').hidden = items.length === 0;
+  $('#drop').classList.toggle('compact', items.length > 0);
+  items.forEach(it => ul.appendChild(rowEl(it)));
+  updateBar(); updateTabs(); updateVisibility();
+}
+function updateBar() {
+  const n = items.length, done = items.filter(i => i.status === 'done').length, err = items.filter(i => i.status === 'error').length;
+  $('#qcount').textContent = n + ' fayl';
+  $('#sum').textContent = n ? `${done} tayyor${err ? ' · ' + err + ' xato' : ''} · jami ${fmtBytes(items.reduce((a, i) => a + i.file.size, 0))}` : '';
+  const todo = items.filter(i => i.status !== 'done').length;
+  const go = $('#go');
+  go.textContent = running ? 'To‘xtatish' : (todo ? `Konvertatsiya qilish (${todo})` : 'Konvertatsiya qilish');
+  go.disabled = !running && todo === 0;
+  $('#dlall').disabled = done === 0;
+  $('#dlall').textContent = done === 1 ? 'Yuklab olish' : 'ZIP qilib yuklab olish';
+  $('#clear').hidden = n === 0 || running;
+}
+function updateTabs() {
+  $$('#tabs .tab').forEach(b => { b.querySelector('.n').textContent = items.filter(i => i.cat === b.dataset.tab).length; });
+}
+function activeTargets(cat) {
+  const s = new Set([defaults[cat]]);
+  items.forEach(i => { if (i.cat === cat) s.add(i.target); });
+  return s;
+}
+function updateVisibility() {
+  for (const cat of Object.keys(FORMATS)) {
+    const act = activeTargets(cat);
+    $$(`#pane-${cat} [data-t]`).forEach(el => { el.hidden = !el.dataset.t.split(' ').some(t => act.has(t)); });
+    $('#note-' + cat).textContent = NOTES[cat + ':' + defaults[cat]] || '';
+  }
+  const m = $('#img-mode').value;
+  $('#img-scale-wrap').hidden = m !== 'scale';
+  $('#img-max-wrap').hidden = m !== 'max';
+  $('#img-pot-wrap').hidden = m !== 'pot';
+  $('#img-q-v').textContent = $('#img-q').value;
+}
+function setTab(cat) {
+  activeTab = cat;
+  $$('#tabs .tab').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === cat)));
+  Object.keys(FORMATS).forEach(c => { $('#pane-' + c).hidden = c !== cat; });
+}
+function buildPanel() {
+  const tabs = $('#tabs');
+  Object.entries(FORMATS).forEach(([cat, f]) => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'tab'; b.dataset.tab = cat; b.setAttribute('role', 'tab');
+    b.innerHTML = `${f.label}<span class="n">0</span>`;
+    b.addEventListener('click', () => setTab(cat));
+    tabs.appendChild(b);
+    const box = $('#fmt-' + cat);
+    f.targets.forEach(t => {
+      const dis = t === 'webp' && !WEBP_OK;
+      const l = document.createElement('label');
+      l.innerHTML = `<input type="radio" name="fmt-${cat}" value="${t}"${t === defaults[cat] ? ' checked' : ''}${dis ? ' disabled title="Bu brauzer WebP kodlamaydi"' : ''}><span>${esc(chipLabel(cat, t))}</span>`;
+      box.appendChild(l);
+    });
+  });
+  setTab('img');
+}
+
+/* ---------- adding files ---------- */
+function addFiles(files, opts = {}) {
+  let first = null;
+  for (const f of files) {
+    if (f.name.startsWith('.')) continue;
+    if (items.length >= 500) break;
+    const cat = catOf(f);
+    items.push({ id: ++uid, file: f, cat, target: defaults[cat], status: 'idle', progress: 0, out: null, error: '', sample: !!opts.sample });
+    if (!first) first = cat;
+  }
+  if (first && !opts.sample) setTab(first);
+  renderQueue();
+}
+async function filesFromDrop(dt) {
+  const list = [...(dt.items || [])];
+  if (list.length && list[0].webkitGetAsEntry) {
+    const entries = list.map(i => i.webkitGetAsEntry()).filter(Boolean), out = [];
+    const walk = async e => {
+      if (e.isFile) out.push(await new Promise((res, rej) => e.file(res, rej)));
+      else if (e.isDirectory) {
+        const r = e.createReader(); let batch;
+        do { batch = await new Promise((res, rej) => r.readEntries(res, rej)); for (const c of batch) await walk(c); } while (batch.length);
+      }
+    };
+    for (const e of entries) await walk(e);
+    return out;
+  }
+  return [...dt.files];
+}
+
+/* ---------- samples (generated in the page, marked as examples) ---------- */
+async function makeSamples() {
+  const rows = [
+    '................',
+    '....########....',
+    '...##########...',
+    '..############..',
+    '..############..',
+    '..##ee####ee##..',
+    '..##ee####ee##..',
+    '..############..',
+    '..############..',
+    '..############..',
+    '..############..',
+    '..############..',
+    '..############..',
+    '..##.####.####..',
+    '..#...##...##...',
+    '................'
+  ];
+  const c = document.createElement('canvas'); c.width = c.height = 16;
+  const x = c.getContext('2d');
+  rows.forEach((r, y) => [...r].forEach((ch, px) => { if (ch === '.') return; x.fillStyle = ch === 'e' ? '#12141a' : '#d9dcff'; x.fillRect(px, y, 1, 1); }));
+  const png = await new Promise(res => c.toBlob(res, 'image/png'));
+  const sr = 22050, n = Math.round(sr * 0.35), s = new Float32Array(n);
+  for (let i = 0, ph = 0; i < n; i++) { const t = i / n; ph += 2 * Math.PI * (440 + 440 * t) / sr; s[i] = Math.sin(ph) * 0.6 * (1 - t); }
+  const wav = encodeWAV([s], sr);
+  const json = JSON.stringify([
+    { id: 1, name: 'Health Potion', price: 25, stackable: true },
+    { id: 2, name: 'Iron Sword', price: 140, stackable: false },
+    { id: 3, name: 'Rusty Key', price: 5, stackable: false },
+    { id: 4, name: 'Arrow', price: 1, stackable: true }
+  ], null, 2);
+  return [
+    new File([png], 'ghost_idle.png', { type: 'image/png' }),
+    new File([wav], 'pickup_blip.wav', { type: 'audio/wav' }),
+    new File([json], 'items.json', { type: 'application/json' })
+  ];
+}
+
+/* ---------- converting ---------- */
+async function convertItem(it) {
+  it.status = 'work'; it.progress = 0; it.error = ''; it.out = null;
+  updateRow(it);
+  const prog = p => setProgress(it, p);
+  const o = readOpts(it.cat);
+  try {
+    let blob;
+    if (it.cat === 'img') blob = await convertImage(it, o, prog);
+    else if (it.cat === 'aud') blob = await convertAudio(it, o, prog);
+    else if (it.cat === 'vid') blob = await convertVideo(it, o, prog);
+    else if (it.cat === 'dat') blob = await convertData(it, o);
+    else blob = await convertOther(it);
+    it.out = blob; it.status = 'done'; it.progress = 1;
+  } catch (e) {
+    console.error(e);
+    it.status = 'error'; it.error = (e && e.message) || String(e);
+  }
+  updateRow(it);
+}
+async function convertAll() {
+  if (running) { stopFlag = true; $('#go').textContent = 'To‘xtatilmoqda…'; return; }
+  running = true; stopFlag = false;
+  renderQueue();
+  for (const it of items.slice()) {
+    if (stopFlag) break;
+    if (it.status === 'done' || !items.includes(it)) continue;
+    await convertItem(it);
+  }
+  running = false; stopFlag = false;
+  renderQueue();
+}
+function download(blob, name) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+async function downloadAll() {
+  const done = items.filter(i => i.status === 'done');
+  if (done.length === 1) return download(done[0].out, outName(done[0]));
+  await loadScript(LIBS.jszip);
+  const z = new JSZip(), used = new Set();
+  for (const it of done) {
+    let name = outName(it), k = 1;
+    while (used.has(name)) { name = outName(it).replace(/(\.[^.]*)?$/, `_${k++}$1`); }
+    used.add(name); z.file(name, it.out);
+  }
+  const blob = await z.generateAsync({ type: 'blob', compression: 'STORE' });
+  download(blob, 'nightmare-convert.zip');
+}
+
+/* ---------- events ---------- */
+function invalidate(cat) {
+  let changed = false;
+  items.forEach(i => { if (i.cat === cat && i.status === 'done') { i.status = 'idle'; i.out = null; i.progress = 0; changed = true; } });
+  if (changed) renderQueue();
+}
+function init() {
+  buildPanel();
+
+  const drop = $('#drop'), fileIn = $('#file');
+  $('#pick').addEventListener('click', e => { e.stopPropagation(); fileIn.click(); });
+  drop.addEventListener('click', e => { if (e.target === drop || e.target.closest('.drop-t')) fileIn.click(); });
+  drop.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target === drop) { e.preventDefault(); fileIn.click(); } });
+  fileIn.addEventListener('change', () => { addFiles([...fileIn.files]); fileIn.value = ''; });
+  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); }));
+  drop.addEventListener('drop', async e => { addFiles(await filesFromDrop(e.dataTransfer)); });
+  window.addEventListener('dragover', e => e.preventDefault());
+  window.addEventListener('drop', e => e.preventDefault());
+
+  $('#queue').addEventListener('click', e => {
+    const b = e.target.closest('button[data-act]'); if (!b) return;
+    const id = +b.closest('.row').dataset.id, it = items.find(i => i.id === id); if (!it) return;
+    const act = b.dataset.act;
+    if (act === 'rm') { items.splice(items.indexOf(it), 1); renderQueue(); }
+    else if (act === 'dl' && it.out) download(it.out, outName(it));
+    else if (act === 'go' && !running) { running = true; renderQueue(); convertItem(it).then(() => { running = false; renderQueue(); }); }
+  });
+  $('#queue').addEventListener('change', e => {
+    const s = e.target.closest('select.target'); if (!s) return;
+    const it = items.find(i => i.id === +s.closest('.row').dataset.id); if (!it) return;
+    it.target = s.value; it.status = 'idle'; it.out = null; it.progress = 0; it.error = '';
+    updateRow(it);
+  });
+  $('#go').addEventListener('click', convertAll);
+  $('#dlall').addEventListener('click', () => downloadAll().catch(err => alert(err.message)));
+  $('#clear').addEventListener('click', () => { items.length = 0; renderQueue(); });
+
+  const panel = $('#panel');
+  panel.addEventListener('change', e => {
+    const pane = e.target.closest('.pane'); if (!pane) return;
+    const cat = pane.id.replace('pane-', '');
+    if (e.target.name === 'fmt-' + cat) {
+      defaults[cat] = e.target.value;
+      items.forEach(i => { if (i.cat === cat && i.status !== 'work') { i.target = e.target.value; i.status = 'idle'; i.out = null; i.progress = 0; i.error = ''; } });
+      renderQueue();
+    } else invalidate(cat);
+    updateVisibility();
+  });
+  panel.addEventListener('input', e => { if (e.target.id === 'img-q') $('#img-q-v').textContent = e.target.value; });
+
+  const root = document.documentElement;
+  try { const t = localStorage.getItem('nc-theme'); if (t === 'light' || t === 'dark') root.dataset.theme = t; } catch (e) {}
+  $('#theme').addEventListener('click', () => {
+    const cur = root.dataset.theme || (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+    const next = cur === 'dark' ? 'light' : 'dark';
+    root.dataset.theme = next;
+    try { localStorage.setItem('nc-theme', next); } catch (e) {}
+  });
+
+  renderQueue();
+}
+init();
+</script>
+</body>
+</html>
